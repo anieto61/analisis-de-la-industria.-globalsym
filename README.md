@@ -1,0 +1,1 @@
+# analisis-de-la-industria.-globalsym
