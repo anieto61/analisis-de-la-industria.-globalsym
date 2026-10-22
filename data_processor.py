@@ -15,18 +15,34 @@ class FinancialDataProcessor:
         for line in ['Linea 1', 'Linea 2']:
             sheet_name = f'Inventario Empresas {line}'
             if sheet_name not in self.excel_file.sheet_names: continue
+            
             df_raw = pd.read_excel(self.file_path, sheet_name=sheet_name, header=None)
+            # Buscamos la fila del encabezado
             header_idx = df_raw.notnull().sum(axis=1).idxmax()
-            df = pd.read_excel(self.file_path, sheet_name=sheet_name, skiprows=header_idx)
+            df = pd.read_excel(self.file_//path, sheet_name=sheet_name, skiprows=header_idx)
+            
             cols = df.columns.tolist()
             countries = [c for c in cols if not str(c).startswith('Unnamed') and '.' not in str(c)]
-            for idx, row in df.iterrows():
+            
+            # IMPORTANTE: Memorizamos los nombres de los productos de la PRIMERA FILA
+            product_map = {}
+            for country in countries:
+                col_idx = cols.index(country)
+                # El nombre del producto es la primera celda de la columna de ese país
+                prod_name = self._clean_value(df.iloc[0, col_idx])
+                product_map[country] = prod_name
+
+            # Ahora procesamos las filas de las empresas (empezando desde la fila 1)
+            for idx in range(1, len(df)):
+                row = df.iloc[idx]
                 company = self._clean_value(row.iloc[0]) if not pd.isna(row.iloc[0]) else f"Empresa {idx+1}"
+                
                 for country in countries:
                     try:
                         col_idx = cols.index(country)
-                        product = self._clean_value(row.iloc[col_idx])
-                        quantity = row.iloc[col_idx + 1]
+                        product = product_map[country] # Usamos el nombre memorizado
+                        quantity = row.iloc[col_idx] # El valor de la celda ahora es la cantidad
+                        
                         if product and product.lower() != 'nan' and pd.notna(quantity):
                             all_inventories.append({
                                 'Company': company, 'Country': country, 'Line': line, 
@@ -45,6 +61,7 @@ class FinancialDataProcessor:
             df = pd.read_excel(self.file_path, sheet_name=sheet_name, skiprows=header_idx)
             cols = df.columns.tolist()
             countries = [c for c in cols if not str(c).startswith('Unnamed') and '.' not in str(c)]
+
             for idx, row in df.iterrows():
                 product = None
                 for val in row:
@@ -69,21 +86,15 @@ class FinancialDataProcessor:
         prof_df = self.process_profitability()
         base_cols = ['Company', 'Country', 'Line', 'Product', 'Quantity', 'Cost', 'Industry_Price', 'Consumer_Price']
         if inv_df.empty: return pd.DataFrame(columns=base_cols)
-        
         merged = pd.merge(inv_df, prof_df, on=['Product', 'Country', 'Line'], how='left')
-        
-        # FORZAR TIPOS NUMÉRICOS (Esto soluciona el error de concatenación)
         numeric_cols = ['Quantity', 'Cost', 'Industry_Price', 'Consumer_Price']
         for col in numeric_cols:
             if col in merged.columns:
                 merged[col] = pd.to_numeric(merged[col], errors='coerce').fillna(0)
             else:
                 merged[col] = 0.0
-                
-        # Forzar textos
         merged['Company'] = merged['Company'].astype(str)
         merged['Product'] = merged['Product'].astype(str)
         merged['Country'] = merged['Country'].astype(str)
         merged['Line'] = merged['Line'].astype(str)
-                
         return merged[base_cols]
