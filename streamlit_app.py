@@ -30,7 +30,9 @@ try:
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Productos", int(df_filtered['Quantity'].sum()))
+        # CAMBIO AQUÍ: Ahora cuenta cuántos nombres de productos únicos hay
+        total_variedad = df_filtered['Product'].nunique()
+        st.metric("Variedad de Productos", total_variedad)
     with col2:
         st.metric("Promedio Costo", f"${df_filtered['Cost'].mean():.2f}")
     with col3:
